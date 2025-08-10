@@ -1,0 +1,17 @@
+{
+  "name": "au_enc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "a simple password manager that gives you control of your own passwords and credentials",
+  "main": "index.js",
+  "scripts": {
+    "start": "node vault-cli.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "auleki",
+  "license": "ISC",
+  "dependencies": {
+    "argon2": "^0.43.1",
+    "inquirer": "^12.9.1"
+  }
+}
