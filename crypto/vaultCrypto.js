@@ -1,21 +1,25 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import argon2 from 'argon2'
-
-const KDF_TIME_COST = 3
-const KDF_MEMORY_COST = 2 ** 16
-const KDF_PARALLELISM = 1
-const KEY_LEN = 32
-
-const aesKey = "aes-256-gcm"
-const encoding = "utf8"
-const baseEncoding = "base64"
+import {
+    KDF_TIME_COST,
+    KDF_MEMORY_COST,
+    KDF_PARALLELISM,
+    KEY_LENGTH,
+    CIPHER_ALGORITHM,
+    KDF_SALT_SIZE,
+    IV_SIZE,
+    TEXT_ENCODING,
+    BASE_ENCODING,
+    VAULT_VERSION,
+    TEMP_SUFFIX
+} from '../config.js'
 
 export async function deriveKeyRaw(masterPassword, kdfSalt) {
     const raw = await argon2.hash(masterPassword, {
         type: argon2.argon2id,
         salt: kdfSalt,
-        hashLength: KEY_LEN,
+        hashLength: KEY_LENGTH,
         timeCost: KDF_TIME_COST,
         memoryCost: KDF_MEMORY_COST,
         parallelism: KDF_PARALLELISM,
@@ -32,22 +36,22 @@ export async function deriveKeyRaw(masterPassword, kdfSalt) {
  * @returns 
  */
 export async function encryptVault(vaultData, masterPassword) {
-    const kdfSalt = crypto.randomBytes(16) // stored outside encrypted payload
-    const iv = crypto.randomBytes(12)
+    const kdfSalt = crypto.randomBytes(KDF_SALT_SIZE) // stored outside encrypted payload
+    const iv = crypto.randomBytes(IV_SIZE)
     const key = await deriveKeyRaw(masterPassword, kdfSalt)
 
     const plaintext = JSON.stringify(vaultData)
 
-    const cipher = crypto.createCipheriv(aesKey, key, iv)
-    const cipherText = Buffer.concat([cipher.update(Buffer.from(plaintext, encoding)), cipher.final()])
+    const cipher = crypto.createCipheriv(CIPHER_ALGORITHM, key, iv)
+    const cipherText = Buffer.concat([cipher.update(Buffer.from(plaintext, TEXT_ENCODING)), cipher.final()])
     const authTag = cipher.getAuthTag()
 
     console.log({ kdfSalt })
     return {
-        kdfSalt: kdfSalt.toString(baseEncoding),
-        iv: iv.toString(baseEncoding),
-        authTag: authTag.toString(baseEncoding),
-        cipherText: cipherText.toString(baseEncoding)
+        kdfSalt: kdfSalt.toString(BASE_ENCODING),
+        iv: iv.toString(BASE_ENCODING),
+        authTag: authTag.toString(BASE_ENCODING),
+        cipherText: cipherText.toString(BASE_ENCODING)
     }
 }
 
@@ -59,13 +63,13 @@ export async function encryptVault(vaultData, masterPassword) {
  * @returns 
  */
 export async function decryptVault(encryptedVault, masterPassword) {
-    const kdfSalt = Buffer.from(encryptedVault.kdfSalt, baseEncoding)
-    const iv = Buffer.from(encryptedVault.iv, baseEncoding)
-    const authTag = Buffer.from(encryptedVault.authTag, baseEncoding)
-    const cipherText = Buffer.from(encryptedVault.cipherText, baseEncoding)
+    const kdfSalt = Buffer.from(encryptedVault.kdfSalt, BASE_ENCODING)
+    const iv = Buffer.from(encryptedVault.iv, BASE_ENCODING)
+    const authTag = Buffer.from(encryptedVault.authTag, BASE_ENCODING)
+    const cipherText = Buffer.from(encryptedVault.cipherText, BASE_ENCODING)
 
     const key = await deriveKeyRaw(masterPassword, kdfSalt)
-    const decipher = crypto.createDecipheriv(aesKey, key, iv)
+    const decipher = crypto.createDecipheriv(CIPHER_ALGORITHM, key, iv)
     decipher.setAuthTag(authTag)
 
     let decrypted;
@@ -75,7 +79,7 @@ export async function decryptVault(encryptedVault, masterPassword) {
         throw new Error("Decryption failed - wrong password or corrupted file")
     }
 
-    const vaultJson = JSON.parse(decrypted.toString(encoding))
+    const vaultJson = JSON.parse(decrypted.toString(TEXT_ENCODING))
 
     // verify master password by checking stored encoded argon hash
     if (!vaultJson.passwordHash) {
@@ -97,8 +101,8 @@ export async function decryptVault(encryptedVault, masterPassword) {
  * @param {*} filePath
  */
 export function saveVaultToFile(encryptedVault, filePath) {
-    const tmp = `${filePath}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify(encryptedVault, null, 2), encoding)
+    const tmp = `${filePath}${TEMP_SUFFIX}`
+    fs.writeFileSync(tmp, JSON.stringify(encryptedVault, null, 2), TEXT_ENCODING)
     fs.renameSync(tmp, filePath)
 }
 
@@ -109,7 +113,7 @@ export function saveVaultToFile(encryptedVault, filePath) {
  */
 export function loadVaultFromFile(filePath) {
     if(!fs.existsSync(filePath)) throw new Error("Vault file not found")
-    const raw = fs.readFileSync(filePath, encoding)
+    const raw = fs.readFileSync(filePath, TEXT_ENCODING)
     return JSON.parse(raw)
 }
 

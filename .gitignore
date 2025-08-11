@@ -1,2 +1,8 @@
 node_modules/
 .DS_Store
+
+# Environment variables
+.env
+
+# Vault files (optional - remove if you want to commit vaults)
+vaults/*.auenc

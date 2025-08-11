@@ -3,9 +3,16 @@ import { encryptVault, decryptVault, saveVaultToFile, loadVaultFromFile } from "
 import argon2 from 'argon2'
 import fs from 'fs'
 import path from "path";
-
-const DEFAULT_FILENAME = 'vault.auenc'
-const VAULTS_DIR = path.join(process.cwd(), 'vaults')
+import {
+    VAULTS_DIR,
+    DEFAULT_FILENAME,
+    MIN_PASSWORD_LENGTH,
+    VAULT_VERSION,
+    KDF_TIME_COST,
+    KDF_MEMORY_COST,
+    getVaultPath,
+    getVaultExtension
+} from "./config.js";
 
 if (!fs.existsSync(VAULTS_DIR)) {
     fs.mkdirSync(VAULTS_DIR, {recursive: true})
@@ -13,24 +20,23 @@ if (!fs.existsSync(VAULTS_DIR)) {
 
 // we are going to take it a step further and hide the files on default
 async function createNewVaultFile(vaultName) {
-    const fileName = `${vaultName}.auenc`
-    const vaultPath = path.join(VAULTS_DIR, fileName)
+    const vaultPath = getVaultPath(vaultName)
     const { masterPassword } = await inquirer.prompt({
         type: "password",
         name: "masterPassword",
         message: "Set a master password for your vault",
         mask: "*",
-        validate: (v) => (v.length >= 8 ? true : "Use at least 8 characters")
+        validate: (v) => (v.length >= MIN_PASSWORD_LENGTH ? true : `Use at least ${MIN_PASSWORD_LENGTH} characters`)
     })
 
     const passwordHash = await argon2.hash(masterPassword, {
         type: argon2.argon2id,
-        timeCost: 3,
-        memoryCost: 2**16
+        timeCost: KDF_TIME_COST,
+        memoryCost: KDF_MEMORY_COST
     })
 
     const vaultData = {
-        version: 1,
+        version: VAULT_VERSION,
         passwordHash,
         entries: []
     }
@@ -55,7 +61,7 @@ async function uploadVaultFlow() {
         return
     }
 
-    const vaultFiles = fs.readdirSync(dirPath).filter(file => file.endsWith('.auenc'))
+    const vaultFiles = fs.readdirSync(dirPath).filter(file => file.endsWith(getVaultExtension()))
 
     if (vaultFiles.length === 0) {
         console.error('No vault files found')
